@@ -62,7 +62,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+char output_control(int TVOC_level, int PMS_level, int CO2_level, char pressed);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -119,26 +119,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  int TVOC = 0;
+  int PM = 0;
+  int CO2 = 0;
+  char fan = 0;
   while (1)
   {
 	  uint8_t buf[12] = {0};
 	  uint8_t buf2[32] = {0};
-//	  ret = HAL_I2C_Master_Transmit(&hi2c1, 0x1A << 1, buf, 1, HAL_MAX_DELAY);
-//	  if (ret != HAL_OK)
-//	  {
-//		  strcpy((char*)buf, "Error T\r\n");
-//	  }
-//	  else
-//	  {
-//		  HAL_Delay(1500);
-//		  ret = HAL_I2C_Master_Receive(&hi2c1, 0x1A << 1 | 1, buf, 5, HAL_MAX_DELAY);
-//		  hal_i2c_master_
-//		  if (ret != HAL_OK)
-//		  	  {
-//		  		  strcpy((char*)buf, "Error M\r\n");
-//		  	  }
-//
-//		  sprintf((char*)buf, "%x\r\n", buf);
 
 	  HAL_Delay(1500);
 	  ret = HAL_I2C_Master_Transmit(&hi2c1, 0x34, buf, 1, HAL_MAX_DELAY);
@@ -155,34 +143,25 @@ int main(void)
 		}
 		else
 		{
-			sprintf((char*)buf, "%d\r\n", buf[4] + buf[3] + buf[2]);
+			TVOC = buf[2] * 256 + buf[3];
+			sprintf((char*)buf, "VOC: %d\r\n",  TVOC);
+
 		}
 
-//	  }
-//	  uint16_t penis = 0x21b1;
-
-//	  ret = HAL_I2C_IsDeviceReady(&hi2c1, 0X1A << 1, 3, 5);
-//	  if (ret != HAL_OK)
-//	  {
-//		  strcpy((char*)buf, "Error p\r\n");
-//	  }
-//	  else
-//	  {
-//		  strcpy((char*)buf, "Penis\r\n");
-//	  }
-	  strcpy((char*)buf, "Penis\r\n");
 	  HAL_UART_Transmit(&huart2, buf, strlen((char*)buf), HAL_MAX_DELAY);
 	  HAL_UART_Receive(&huart1, buf2, 36, HAL_MAX_DELAY);
 	  uint16_t buffer_u16[15];
-	for (uint8_t i=0; i<15; i++) {
-	  buffer_u16[i] = buf2[2 + i*2 + 1];
-	  buffer_u16[i] += (buf2[2 + i*2] << 8);
-	}
-	memcpy((void *)&data, (void *)buffer_u16, 30);
-	  sprintf((char*)buf2, "%d \r\n", data.pm100_env / 700);
+	  for (uint8_t i=0; i<15; i++) {
+		  buffer_u16[i] = buf2[2 + i*2 + 1];
+		  buffer_u16[i] += (buf2[2 + i*2] << 8);
+	  }
+	  memcpy((void *)&data, (void *)buffer_u16, 30);
+	  sprintf((char*)buf2, "PM: %d \r\n \r\n", data.pm100_env / 700);
+	  PM = data.pm100_env / 700;
 
 	  HAL_UART_Transmit(&huart2, buf2, strlen((char*)buf2), 500);
 	  HAL_Delay(500);
+	  fan = output_control(TVOC, PM, CO2, fan);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -354,7 +333,15 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|GPIO_PIN_4|LD2_Pin|GPIO_PIN_6
+                          |GPIO_PIN_7, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_10|GPIO_PIN_13|GPIO_PIN_14
+                          |GPIO_PIN_6, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -362,19 +349,103 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : PA1 PA4 LD2_Pin PA6
+                           PA7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_4|LD2_Pin|GPIO_PIN_6
+                          |GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB10 PB13 PB14
+                           PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_10|GPIO_PIN_13|GPIO_PIN_14
+                          |GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-
+char output_control(int TVOC_level, int PMS_level, int CO2_level, char pressed){
+    int fanControl = 0;
+    if (!(pressed&0b1) && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5)){
+      pressed += 1;
+      pressed ^= 0b10;
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+    }else if((pressed&0b1) && !HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5)){
+      pressed -= 1;
+    }
+    if (TVOC_level < 65){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET); //green 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET); //yellow 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); //red 3
+    }else if (TVOC_level < 250){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET); //green 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET); //yellow 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); //red 3
+      fanControl = 1;
+    }else{
+         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET); //green 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET); //yellow 3
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); //red 3
+      fanControl = 1;
+    }
+    if (PMS_level < 10){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET); //green 2
+      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //yellow 2
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET); //red 2
+    }else if (PMS_level < 75){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET); //green 2
+      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET); //yellow 2
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET); //red 2
+      fanControl = 1;
+}else{
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET); //green 2
+      HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //yellow 2
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET); //red 2
+      fanControl = 1;
+    }
+    if (CO2_level < 800){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET); //green 1
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET); //yellow 1
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //red 1
+    }else if (CO2_level < 1200){
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); //green 1
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET); //yellow 1
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); //red 1
+      fanControl = 1;
+    }else{
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); //green 1
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET); //yellow 1
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET); //red 1
+      fanControl = 1;
+    }
+    if (fanControl && (pressed&0b10)){
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+    }else{
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+    }
+    return pressed;
+}
 /* USER CODE END 4 */
 
 /**
