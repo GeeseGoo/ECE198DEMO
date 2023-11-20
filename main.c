@@ -1,8 +1,48 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2023 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
 
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "string.h"
+#include "stdio.h"
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -12,82 +52,6 @@ static const unsigned int START_PER_MEASURE = 0x21b1; // start_periodic_measurem
 static const unsigned int READ_MEASURE = 0xec05; // read_measurement
 static const unsigned int STOP_PER_MEASURE = 0x3f86; // stop periodic measurement
 
-// Function to calculate mean value of the measurements over past x days
-int mean(int measurements[], int days, int length)
-{
-    // Want to access the past x days from measurement
-    int loop = length - days;
-    int sum{0};
-    // If x is greater than number of days measured, use all data available
-    if (loop < 0)
-    {
-        loop = 0;
-    }
-
-    // Sum all of the past x days in measurements
-    for(int i = length - 1; i >= loop; i--)
-    {
-        sum += measurements[i];
-    }
-
-    // Return mean as sum of the measurements / number of days counted
-    return sum / (length - loop);
-}
-
-// Function to calculate minimum value of the measurements over past x days
-int minimum(int measurements[], int days, int length)
-{
-    // Want to access the past x days from measurement
-    int loop = length - days;
-    // If x is greater than the number of days measured, use all data available
-    if (loop < 0)
-    {
-        loop = 0;
-    }
-
-    // Initialize min_value to the first measurement in the range
-    int min_value = measurements[length - 1];
-
-    // Find the minimum value in the past x days in measurements
-    for(int i = length - 2; i >= loop; i--)
-    {
-        if (measurements[i] < min_value)
-        {
-            min_value = measurements[i];
-        }
-    }
-
-    // Return the minimum value found
-    return min_value;
-}
-
-// Function to calculate maximum value of the measurements over past x days
-int maximum(int measurements[], int days, int length)
-{
-    // Want to access the past x days from measurement
-    int loop = length - days;
-    // If x is greater than the number of days measured, use all data available
-    if (loop < 0)
-    {
-        loop = 0;
-    }
-
-    // Initialize max_value to the first measurement in the range
-    int max_value = measurements[length - 1];
-
-    // Find the maximum value in the past x days in measurements
-    for(int i = length - 2; i >= loop; i--)
-    {
-        if (measurements[i] > max_value)
-        {
-            max_value = measurements[i];
-        }
-    }
-
-    // Return the maximum value found
-    return max_value;
-}
-
 
 /* USER CODE END PV */
 
@@ -96,6 +60,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -138,8 +103,18 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  struct pms5003data {
+    uint16_t framelen;
+    uint16_t pm10_standard, pm25_standard, pm100_standard;
+    uint16_t pm10_env, pm25_env, pm100_env;
+    uint16_t particles_03um, particles_05um, particles_10um, particles_25um, particles_50um, particles_100um;
+    uint16_t unused;
+    uint16_t checksum;
+  };
 
+  struct pms5003data data;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -147,6 +122,23 @@ int main(void)
   while (1)
   {
 	  uint8_t buf[12] = {0};
+	  uint8_t buf2[32] = {0};
+//	  ret = HAL_I2C_Master_Transmit(&hi2c1, 0x1A << 1, buf, 1, HAL_MAX_DELAY);
+//	  if (ret != HAL_OK)
+//	  {
+//		  strcpy((char*)buf, "Error T\r\n");
+//	  }
+//	  else
+//	  {
+//		  HAL_Delay(1500);
+//		  ret = HAL_I2C_Master_Receive(&hi2c1, 0x1A << 1 | 1, buf, 5, HAL_MAX_DELAY);
+//		  hal_i2c_master_
+//		  if (ret != HAL_OK)
+//		  	  {
+//		  		  strcpy((char*)buf, "Error M\r\n");
+//		  	  }
+//
+//		  sprintf((char*)buf, "%x\r\n", buf);
 
 	  HAL_Delay(1500);
 	  ret = HAL_I2C_Master_Transmit(&hi2c1, 0x34, buf, 1, HAL_MAX_DELAY);
@@ -165,7 +157,31 @@ int main(void)
 		{
 			sprintf((char*)buf, "%d\r\n", buf[4] + buf[3] + buf[2]);
 		}
+
+//	  }
+//	  uint16_t penis = 0x21b1;
+
+//	  ret = HAL_I2C_IsDeviceReady(&hi2c1, 0X1A << 1, 3, 5);
+//	  if (ret != HAL_OK)
+//	  {
+//		  strcpy((char*)buf, "Error p\r\n");
+//	  }
+//	  else
+//	  {
+//		  strcpy((char*)buf, "Penis\r\n");
+//	  }
+	  strcpy((char*)buf, "Penis\r\n");
 	  HAL_UART_Transmit(&huart2, buf, strlen((char*)buf), HAL_MAX_DELAY);
+	  HAL_UART_Receive(&huart1, buf2, 36, HAL_MAX_DELAY);
+	  uint16_t buffer_u16[15];
+	for (uint8_t i=0; i<15; i++) {
+	  buffer_u16[i] = buf2[2 + i*2 + 1];
+	  buffer_u16[i] += (buf2[2 + i*2] << 8);
+	}
+	memcpy((void *)&data, (void *)buffer_u16, 30);
+	  sprintf((char*)buf2, "%d \r\n", data.pm100_env / 700);
+
+	  HAL_UART_Transmit(&huart2, buf2, strlen((char*)buf2), 500);
 	  HAL_Delay(500);
     /* USER CODE END WHILE */
 
@@ -251,6 +267,39 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 9600;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 
